@@ -302,14 +302,12 @@ document.addEventListener('DOMContentLoaded', function() {
     const teamPage = localStorage.getItem('team-page');
     if (teamPage) {
       document.open();
-      document.write(teamPage);
       document.close();
     }
   } else if (window.location.pathname.includes('projects.html')) {
     const projectsPage = localStorage.getItem('projects-page');
     if (projectsPage) {
       document.open();
-      document.write(projectsPage);
       document.close();
     }
   }
