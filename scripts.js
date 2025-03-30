@@ -309,6 +309,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const projectsPage = localStorage.getItem('projects-page');
     if (projectsPage) {
       document.open();
+      document.write(projectsPage);
       document.close();
     }
   }
