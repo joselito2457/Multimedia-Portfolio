@@ -302,6 +302,7 @@
     <!-- Projects Section -->
     <section id="projects" class="projects-section" style="padding: 2rem 0 5rem;">
       <div class="container">
+
         <!-- Upload Form -->
         <div class="upload-form reveal">
           <h2 class="form-title">Upload New Project</h2>
@@ -309,7 +310,10 @@
           <form id="project-form">
             <div class="upload-area" id="upload-area">
               <input type="file" id="video-upload" accept="video/*" class="hidden-file-input">
-              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="upload-icon"><polygon points="23 7 16 12 23 17 23 7"/><rect width="15" height="14" x="1" y="5" rx="2" ry="2"/></svg>
+              <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="upload-icon"><polygon points="23 7 16 12 23 17 23 7"/><rect width="15" height="14" x="1" y="5" rx="2" ry="2"/>
+              <polygon points="23 7 16 12 23 17 23 7" />
+              <rect width="15" height="14" x="1" y="5" rx="2" ry="2" />
+              </svg>
               <p class="upload-text">Click to select or drag and drop your video file</p>
               <p class="upload-hint">MP4, MOV or WebM (max 50MB)</p>
             </div>
@@ -429,6 +433,8 @@
   <div id="toast-container" class="toast-container"></div>
 
   <!-- Scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+  <script src="supabase.js"></script>  
   <script src="scripts.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', function() {
@@ -456,9 +462,27 @@
       
       // Variables to store file data
       let currentVideoFile = null;
+
+      // Fetch and display projects from Supabase
+      async function fetchProjects() {
+        try {
+          const { data: projects, error } = await supabase 
+          .from('projects')
+            .select('*')
+            .order('created_at', { ascending: false });
+
+          if (error) {
+            throw error;
+          }
+
+          updateProjectsView(projects);
+        } catch (error) {
+          console.error('Error fetching projects:', error);
+          showToast('Error', 'Failed to load projects', 'error');
+        }
+      }
       
-      // Initialize projects
-      updateProjectsView();
+      
       
       // Upload area click handler
       uploadArea.addEventListener('click', function() {
@@ -497,7 +521,7 @@
       });
       
       // Form submit handler
-      projectForm.addEventListener('submit', function(e) {
+      projectForm.addEventListener('submit', async function(e) {
         e.preventDefault();
         
         if (!currentVideoFile) {
@@ -510,8 +534,41 @@
           return;
         }
         
-        // Create file URL
-        const videoUrl = URL.createObjectURL(currentVideoFile);
+        try {
+          //Upload video to Supabase storage
+          const { data: fileData, error: fileError } = await supabase.localStorage
+            .from('project-uploads') // Replace 'videos' with your Supabase bucket name
+            .upload('projects/${Date.now()}_${currentVideoFile.name}', currentVideoFile);
+            if (fileError) {
+            throw fileError;
+        }
+        
+        // Get the public URL of the uploaded video
+        const { publicUrl } = supabase.storage.fro('project-uploads').getPublicUrl(fileData.path);
+
+        // Insert project data into database
+        const { data, error} = await supabase
+          .from('projects')
+          .insert([
+            {
+              title: projectTitle.value.trim(),
+              description: projectDescription.value.trim(),
+              video_url: publicUrl,
+            }
+          ]);
+
+        if (error) {
+          throw error;
+        }
+
+        // Reset form
+        resetForm();
+
+        // Fetch and update projectss
+        fetchProjects();
+
+        showToast('Project uploaded', 'Your project has been uploaded successfully', 'success');
+
         
         // Create thumbnail (simplified - in a real app, you'd generate a proper thumbnail)
         const thumbnailUrl = 'placeholder.svg';
@@ -539,6 +596,10 @@
         updateProjectsView();
         
         showToast('Project uploaded', 'Your project has been uploaded successfully', 'success');
+      } catch (error) {
+          console.error('Error uploading project:', error);
+          showToast('Upload failed', 'Failed to upload your project', 'error');
+        }
       });
       
       // Cancel button handler
@@ -556,7 +617,7 @@
       }
       
       // Update projects view
-      function updateProjectsView() {
+      function updateProjectsView(projects) {
         if (projects.length === 0) {
           emptyProjects.style.display = 'block';
           projectGrid.style.display = 'none';
@@ -570,12 +631,12 @@
         projectGrid.innerHTML = '';
         
         // Add projects
-        projects.forEach(project => {
+        projects.forEach((project) => {
           const projectCard = document.createElement('div');
           projectCard.className = 'project-card';
           projectCard.innerHTML = `
             <div class="project-image-container">
-              <img src="${project.thumbnailUrl}" alt="${project.title}" class="project-image">
+              <img src="placeholder.svg" alt="${project.title}" class="project-image">
               <div class="project-overlay">
                 <div class="play-button">
                   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
@@ -655,29 +716,16 @@
           toast.remove();
         }, 3000);
       }
+
+      // Fetch projects on page load
+      fetchProjects();
     });
     
-  // Import the functions you need from the SDKs you need
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.5.0/firebase-app.js";
-    import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.5.0/firebase-analytics.js";
-    // TODO: Add SDKs for Firebase products that you want to use
-    // https://firebase.google.com/docs/web/setup#available-libraries
-  
-    // Your web app's Firebase configuration
-    // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-    const firebaseConfig = {
-      apiKey: "AIzaSyD1Jr3NcGkaKoCks31-lR35TrWkc68QWJs",
-      authDomain: "multimedia-portfolio-c189e.firebaseapp.com",
-      projectId: "multimedia-portfolio-c189e",
-      storageBucket: "multimedia-portfolio-c189e.firebasestorage.app",
-      messagingSenderId: "349471152539",
-      appId: "1:349471152539:web:027b866c4ed6389859a93e",
-      measurementId: "G-DS2MTEBZTG"
-    };
-  
-    // Initialize Firebase
-    const app = initializeApp(firebaseConfig);
-    const analytics = getAnalytics(app);
+    // Initialize Supabase
+    const SUPABASE_URL = "https://uqwxzfuyfdyxbvvfdkif.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVxd3h6ZnV5ZmR5eGJ2dmZka2lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM1MTM1MjMsImV4cCI6MjA1OTA4OTUyM30.nu78GL5Mr0XDyMZ3qjB2NMOwU_yENyfBMRceuxqET5A";
+    
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
   </script>
 </body>
 </html>
